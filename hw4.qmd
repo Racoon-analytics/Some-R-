@@ -1,0 +1,97 @@
+---
+title: "HW4"
+format: 
+  html: default
+  typst: default
+author: "Denys Semenets"
+---
+## Команди Євроліги
+Цей датасет містить дані про теперешні команди з євроліги (основний клубний баскетбольний турнір Європи)
+
+```{r}
+#| label: setup
+#| echo: false
+#| include: false
+
+
+
+library(tidytuesdayR)
+library(tidyverse)
+library(rnaturalearth)
+library(plotly)
+library(tmaptools)
+
+
+tt <- tt_load("2025-10-07")
+
+tt <- tt$euroleague_basketball
+tt$Capacity <- sapply(tt$Capacity, function(x) {
+  parts <- str_split(x, ",")[[1]]      
+  as.numeric(paste0(parts[1:2], collapse = ""))})
+
+tt <- tt |> rowwise() |> 
+  mutate(coords = list(geocode_OSM(paste(`Home city`, Country, sep = ", "))),
+    lat = coords$coords[2],
+    lon = coords$coords[1]) |> ungroup() |> select(-coords)
+```
+
+```{r}
+#| echo: false
+#| include: true
+
+
+tt |> knitr::kable()
+``` 
+
+
+```{r}
+ggplot(tt, aes(x = reorder(Team,Capacity), y = Capacity, fill = Country)) +
+  geom_col() + geom_text(aes(label = Capacity),hjust = 1.1)+
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Місткість арен команд Євроліги", x = "Team")
+
+```
+
+
+
+
+```{r}
+plot_ly(tt,
+        type = 'scattergeo',
+        lat = ~lat,
+        lon = ~lon,
+        text = ~paste(Team, "<br>City:", tt$`Home city`, "<br>Capacity:", Capacity),
+        marker = list(size = ~Capacity/1000, color = ~Capacity, colorscale = 'Viridis'),
+        hoverinfo = "text")  |> 
+  layout(
+    geo = list(
+      scope = 'world', 
+      projection = list(type = 'natural earth'),
+      showland = TRUE,
+      showlakes = TRUE,
+      subunitcolor = "rgb(200,200,200)",
+      countrycolor = "rgb(180,180,180)"
+    ),
+    title = "Розташування домашніх арен"
+  )
+
+```
+
+```{r}
+tt |> filter(Titles_Won>0) |> 
+  plot_ly(
+  labels = ~Team,
+  values = ~Titles_Won,
+  type = 'pie',
+  textinfo = "label+value",
+  hoverinfo = 'text',
+  text = ~paste(
+    Team, "<br>City:", `Home city`,
+    "<br>Titles Won:", Titles_Won,
+    "<br>Final Four:", FinalFour_Appearances
+  )
+) |> 
+  layout(title = "Кількість виграних титулів")
+```
+
